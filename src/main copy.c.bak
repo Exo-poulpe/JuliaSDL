@@ -1,0 +1,213 @@
+#include <SDL2/SDL.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+#include "Julia.h"
+
+#define WIDTH 800
+#define HEIGHT 800
+
+int main()
+{
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window *window = SDL_CreateWindow("Julia Set - SDL2",
+                                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                          WIDTH, HEIGHT, 0);
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Texture *texture = SDL_CreateTexture(renderer,
+                                             SDL_PIXELFORMAT_ARGB8888,
+                                             SDL_TEXTUREACCESS_STREAMING,
+                                             WIDTH, HEIGHT);
+
+    bool running = true;
+    SDL_Event event;
+
+    double zoom = 1.0;
+    double max_iterations = 1000.0;
+    double scale_x, scale_y;
+
+    MyComplex *center = create_complex(0.0, 0.0);
+    MyComplex *c = create_complex(-0.8, 0.156); // test avec une bonne valeur
+
+    uint32_t *pixels = calloc(WIDTH * HEIGHT , sizeof(uint32_t));
+
+    const char* renderer_name = SDL_GetCurrentVideoDriver();
+    printf("Renderer backend: %s\n", renderer_name);
+
+    // double a = 348743031.861789;              // angle in radians (change speed here)
+    // double r = 0.7885;
+    // complex_edit_from_angle(a, r, c);
+
+    while (running)
+    {
+        // Events
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_QUIT)
+                running = false;
+        }
+
+        // Compute fractal
+        scale_x = (3.0 / (double)WIDTH) * zoom;
+        scale_y = (3.0 / (double)HEIGHT) * zoom;
+
+        for (int x = 0; x < WIDTH; x++)
+        {
+            for (int y = 0; y < HEIGHT; y++)
+            {
+                MyComplex *z0 = pixel_to_complex_return(x, y, center, scale_x, scale_y, WIDTH, HEIGHT);
+                double iter = complex_to_iteration_smooth(z0, c, max_iterations);
+                uint32_t color = iteration_to_color(iter, max_iterations);
+                pixels[y * WIDTH + x] = 0xFF000000 | color; // SDL wants ARGB
+                destroy_complex(z0);
+            }
+        }
+
+        // Render
+        SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(uint32_t));
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
+
+        zoom -= 0.001;
+        
+    }
+
+    free(pixels);
+    destroy_complex(center);
+    destroy_complex(c);
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+// #define CNFG_IMPLEMENTATION
+
+// #include "rawdraw_sf.h"
+// #include "os_generic.h"
+
+// #include <math.h>
+// #include <string.h>
+// #include <stdlib.h>
+// #include <stdio.h>
+
+// #include <omp.h>
+
+// #include "Julia.h"
+
+// void HandleKey(int keycode, int bDown) {}
+// void HandleButton(int x, int y, int button, int bDown) {}
+// void HandleMotion(int x, int y, int mask) {}
+// int HandleDestroy() { return 0; }
+// int main()
+// {
+//     CNFGSetup("Example App", 800, 800);
+//     double max_iteration = 300.0;
+//     double scale_x = 0;
+//     double scale_y = 0;
+//     double zoom = 1.0;
+//     MyComplex *c = create_complex(-0.70176, -0.3842);
+//     // MyComplex* c = create_complex(-0.8, 0.156);
+//     MyComplex *center = create_complex(0.0, 0.0);
+//     // MyComplex* center = create_complex(-0.35, 0.65);
+//     // MyComplex* c = create_complex(-0.5251993, -0.5251993);
+//     bool not_rotate = true;
+//     while (CNFGHandleInput())
+//     {
+//         CNFGBGColor = 0x000080ff; // Dark Blue Background
+
+//         short w, h;
+//         CNFGClearFrame();
+//         CNFGGetDimensions(&w, &h);
+
+//         // Change color to white.
+//         CNFGColor(0xffffffff);
+
+//         scale_x = (3.0 / (double)w) * zoom;
+//         scale_y = (3.0 / (double)h) * zoom;
+
+//         MyComplex *z0 = create_complex(0.0, 0.0);
+
+//         // if (not_rotate) {
+
+//         // double a = 348743031.861789;              // angle in radians (change speed here)
+//         // double r = 0.7885;               // constant radius for connected Julia sets
+
+//         // complex_edit_from_angle(a, r, c);
+//         // not_rotate = false;
+//         // }
+
+//         double total = 0.0;
+//         double min_iter = 9999;
+//         double max_iter_seen = 0.0;
+//         int sample = 0;
+
+//         for (uint32_t x = 0; x < w; x += 1)
+//         {
+//             for (uint32_t y = 0; y < h; y += 1)
+//             {
+//                 MyComplex *z0 = pixel_to_complex_return(x, y, center, scale_x, scale_y, w, h);
+//                 // pixel_to_complex(x, y, center, scale_x, scale_y, w, h, z0);
+//                 double iteration = complex_to_iteration_smooth(z0, c, max_iteration);
+//                 uint32_t color = iteration_to_color(iteration, max_iteration);
+//                 // uint32_t color = color_from_enum(col_enum);
+//                 CNFGColor(color);
+//                 CNFGTackPixel(x, y);
+//                 // static uint32_t min_iter = 9999, max_iter = 0;
+//                 // if (iteration < min_iter) min_iter = iteration;
+//                 // if (iteration > max_iter) max_iter = iteration;
+//                 // if (x == w - 1 && y == h - 1)
+//                 // {
+//                 //     printf("Iterations: min = %u, max = %u\n", min_iter, max_iter);
+//                 // }    
+
+//                 // total += iteration;
+//                 // if (iteration < min_iter)
+//                 //     min_iter = iteration;
+//                 // if (iteration > max_iter_seen)
+//                 //     max_iter_seen = iteration;
+//                 // if (x % 100 == 0 && y % 100 == 0)
+//                 // {
+//                 //     printf("Iter@(%u,%u): %.2f\n", x, y, iteration);
+//                 //     sample++;
+//                 // }
+
+//                 // total += iteration; // ✅ this line is missing entirely
+//                 // if (iteration < min_iter)
+//                 //     min_iter = iteration; // ✅ also missing
+//                 // if (iteration > max_iter_seen)
+//                 //     max_iter_seen = iteration;
+//                 destroy_complex(z0);
+//             }
+//         }
+
+//         // printf("Frame: avg=%.2f min=%.2f max=%.2f samples=%d\n", total / (w * h), min_iter, max_iter_seen, sample);
+//         double t = OGGetAbsoluteTime();
+//         zoom -= 0.05;
+//         // zoom = 1.0 / pow(1.02, t * 30);
+//         // zoom = 1.0 / pow(1.02, t * 30);
+//         // zoom = 1.0 / pow(1.01, t * 10);
+
+//         // printf("a : %lf, r : %lf\n",a,r);
+
+//         // printf("Render is good : %lf\n",t);
+//         // complex_edit(cos(t * 0.3), sin(t * 0.5), c);
+
+//         // Display the image and wait for time to display next frame.
+//         CNFGSwapBuffers();
+//         // CNFGClearFrame();
+//     }
+// }

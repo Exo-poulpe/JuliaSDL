@@ -1,0 +1,75 @@
+# ========== CONFIGURATION ==========
+
+# Executable name
+TARGET = julia_sdl
+
+# Source files
+SRC = main.c Julia.c
+
+# Base compilation flags
+CFLAGS = -Wall -Wextra -std=c99 -O2
+LDFLAGS =
+
+# Enable static SDL2 build (0 = dynamic, 1 = static)
+USE_STATIC_SDL ?= 0
+
+# Enable OpenMP (0 = disable, 1 = enable)
+USE_OPENMP ?= 1
+
+# ========== PLATFORM DETECTION ==========
+
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Linux)
+	SDL_CFLAGS := $(shell sdl2-config --cflags)
+	SDL_LDFLAGS := $(shell sdl2-config --libs)
+	ifeq ($(USE_STATIC_SDL),1)
+		SDL_LDFLAGS := -lSDL2 -static
+	endif
+endif
+
+ifeq ($(UNAME_S),Darwin)
+	SDL_CFLAGS := -I/usr/local/include/SDL2
+	SDL_LDFLAGS := -L/usr/local/lib -lSDL2
+endif
+
+ifeq ($(OS),Windows_NT)
+	# Assume MinGW (e.g. via MSYS2)
+	SDL_CFLAGS := -IC:/msys64/mingw64/include/SDL2
+	SDL_LDFLAGS := -LC:/msys64/mingw64/lib -lSDL2main -lSDL2
+endif
+
+# OpenMP flags
+ifeq ($(USE_OPENMP),1)
+	CFLAGS += -fopenmp
+	LDFLAGS += -fopenmp
+endif
+
+# Append SDL flags
+CFLAGS += $(SDL_CFLAGS)
+LDFLAGS += $(SDL_LDFLAGS)
+
+# ========== BUILD RULES ==========
+
+.PHONY: all clean release dynamic static no_omp
+
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+# Convenience targets
+release:
+	$(MAKE) USE_STATIC_SDL=1 USE_OPENMP=1
+
+static:
+	$(MAKE) USE_STATIC_SDL=1
+
+dynamic:
+	$(MAKE) USE_STATIC_SDL=0
+
+no_omp:
+	$(MAKE) USE_OPENMP=0
+
+clean:
+	rm -f $(TARGET)
